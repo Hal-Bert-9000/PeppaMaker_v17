@@ -73,12 +73,18 @@ const PerformanceChart: React.FC<{ data: TournamentData }> = ({ data }) => {
         <h3 className="text-[10px] font-black flex items-center gap-2 uppercase tracking-[0.2em] text-slate-500">
           <TrendingUp className="text-emerald-500 w-3.5 h-3.5" /> Trend Punteggi
         </h3>
-        <button 
-          onClick={downloadChart}
-          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border border-slate-700 transition"
-        >
-          <Camera className="w-3.5 h-3.5" /> Esporta
-        </button>
+        <div className="flex items-center gap-4">
+           <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500 border border-white"></div>
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">Cappotto (45pt)</span>
+           </div>
+           <button 
+             onClick={downloadChart}
+             className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border border-slate-700 transition"
+           >
+             <Camera className="w-3.5 h-3.5" /> Esporta
+           </button>
+        </div>
       </div>
       <div className="relative w-full overflow-hidden">
         <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="w-full h-auto bg-slate-900">
@@ -102,6 +108,37 @@ const PerformanceChart: React.FC<{ data: TournamentData }> = ({ data }) => {
             return (
               <g key={p.id}>
                 <polyline fill="none" stroke={color} strokeWidth={idx < 5 ? "2.5" : "1.2"} strokeOpacity={idx < 10 ? "0.9" : "0.3"} points={pointsStr} className="transition-all duration-1000" />
+                
+                {/* Visualizzazione Pallini Cappotto */}
+                {history.map((pt, h) => {
+                  if (h === 0) return null;
+                  const handScore = pt - history[h - 1];
+                  if (handScore === 45) {
+                    return (
+                      <g key={`${p.id}-cap-${h}`}>
+                        {/* Alone per risaltare */}
+                        <circle
+                          cx={getX(h)}
+                          cy={getY(pt)}
+                          r="7"
+                          fill="#ef4444"
+                          fillOpacity="0.25"
+                        />
+                        {/* Pallino Rosso Evidente */}
+                        <circle
+                          cx={getX(h)}
+                          cy={getY(pt)}
+                          r="4.5"
+                          fill="#ef4444"
+                          stroke="#ffffff"
+                          strokeWidth="2"
+                        />
+                      </g>
+                    );
+                  }
+                  return null;
+                })}
+
                 <text 
                   x={getX(history.length - 1) + 8} 
                   y={getY(lastPoint) + 4} 
@@ -254,11 +291,18 @@ const LiveDashboard: React.FC<LiveDashboardProps> = ({ data, setData }) => {
   });
 
   const getRankBadgeStyle = (idx: number, isEliminated: boolean) => {
-    if (idx === 0) return 'bg-amber-400 text-slate-950 ring-2 ring-amber-400/30 shadow-[0_0_12px_rgba(251,191,36,0.5)]';
-    if (idx === 1) return 'bg-slate-300 text-slate-950 ring-2 ring-slate-100/30 shadow-[0_0_12px_rgba(203,213,225,0.4)]';
-    if (idx === 2) return 'bg-orange-600 text-white ring-2 ring-orange-400/30 shadow-[0_0_12px_rgba(234,88,12,0.4)]';
-    if (isEliminated) return 'bg-rose-950 text-rose-500 opacity-50';
-    return 'bg-slate-800 text-slate-400';
+    if (idx === 0) return 'bg-amber-400 text-slate-950 border border-amber-300';
+    if (idx === 1) return 'bg-slate-300 text-slate-950 border border-slate-200';
+    if (idx === 2) return 'bg-orange-600 text-white border border-orange-500';
+    if (isEliminated) return 'bg-rose-950 text-rose-500 border border-rose-900 opacity-60';
+    
+    // Aggiunto stile zona rischio eliminazione
+    const riskThreshold = ranking.length - data.config.numEliminatiDopoFase1;
+    if (idx >= riskThreshold && data.manoAttuale <= data.config.maniFase1) {
+      return 'bg-rose-900/40 text-rose-400 border border-rose-800/50';
+    }
+    
+    return 'bg-slate-800 text-slate-400 border border-slate-700/50';
   };
 
   const getSeatLabel = (tIdx: number, sIdx: number) => {
@@ -381,20 +425,33 @@ const LiveDashboard: React.FC<LiveDashboardProps> = ({ data, setData }) => {
                   </div>
                   <div className="p-4 px-6 flex-1 flex flex-col justify-between">
                     <div className="divide-y divide-slate-800/40">
-                      {t.map((pid, sIdx) => (
-                        <div key={pid} className="flex items-center gap-3 py-2">
-                          <span className="text-[13px] font-black text-emerald-400 w-7 shrink-0 tracking-tight">{getSeatLabel(tIdx, sIdx)}</span>
-                          <span className="font-narrow text-slate-100 text-2xl truncate flex-1 leading-tight tracking-tight">{truncateName(data.giocatori.find(g => g.id === pid)?.name)}</span>
-                          <button tabIndex={-1} onClick={() => handleCappotto(tIdx, pid)} className="text-[8px] bg-rose-950/30 text-rose-500 px-2.5 py-1.5 rounded-lg font-black border border-rose-900/20 uppercase tracking-tighter">CAP</button>
-                          <input 
-                            type="number" 
-                            onFocus={() => setFocusedPlayer({tableIdx: tIdx, playerId: pid})} 
-                            className={`w-16 h-12 bg-slate-950 border-2 rounded-[14px] p-1 text-center font-black text-emerald-400 outline-none text-2xl transition-all ${focusedPlayer?.playerId === pid ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-slate-800'}`} 
-                            value={currentHandScores[tIdx]?.[pid] ?? ''} 
-                            onChange={e => handleScoreChange(tIdx, pid, e.target.value)} 
-                          />
-                        </div>
-                      ))}
+                      {t.map((pid, sIdx) => {
+                        const globalIdx = ranking.findIndex(p => p.id === pid);
+                        const playerObj = data.giocatori.find(g => g.id === pid);
+                        const isEliminated = playerObj?.isEliminated || false;
+                        
+                        return (
+                          <div key={pid} className="flex items-center gap-3 py-2">
+                            <span className="text-[13px] font-black text-emerald-400 w-7 shrink-0 tracking-tight">{getSeatLabel(tIdx, sIdx)}</span>
+                            {/* Box Ranking DINAMICO con Bordo */}
+                            <div 
+                              className={`${getRankBadgeStyle(globalIdx, isEliminated)} font-black text-[10px] px-1.5 py-0.5 rounded-lg shrink-0 w-8 text-center transition-all duration-500`} 
+                              title="Posizione attuale in classifica"
+                            >
+                              #{globalIdx + 1}
+                            </div>
+                            <span className="font-narrow text-slate-100 text-2xl truncate flex-1 leading-tight tracking-tight">{truncateName(playerObj?.name)}</span>
+                            <button tabIndex={-1} onClick={() => handleCappotto(tIdx, pid)} className="text-[8px] bg-rose-950/30 text-rose-500 px-2.5 py-1.5 rounded-lg font-black border border-rose-900/20 uppercase tracking-tighter">CAP</button>
+                            <input 
+                              type="number" 
+                              onFocus={() => setFocusedPlayer({tableIdx: tIdx, playerId: pid})} 
+                              className={`w-16 h-12 bg-slate-950 border-2 rounded-[14px] p-1 text-center font-black text-emerald-400 outline-none text-2xl transition-all ${focusedPlayer?.playerId === pid ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-slate-800'}`} 
+                              value={currentHandScores[tIdx]?.[pid] ?? ''} 
+                              onChange={e => handleScoreChange(tIdx, pid, e.target.value)} 
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className={`text-right text-[11px] font-light pt-3 border-t border-slate-800/30 mt-3 ${sum === 0 ? 'text-emerald-500/50' : 'text-rose-500'}`}>
                       somma: {sum}
